@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#173b2b">
+<title>MenuisiCalc</title>
+<style>
+:root{--green:#173b2b;--light:#f3f6f2;--line:#d8e1d8;--ink:#17231b}
+*{box-sizing:border-box}body{margin:0;background:var(--light);color:var(--ink);font:16px system-ui,-apple-system,Segoe UI,sans-serif}
+header{background:var(--green);color:white;padding:25px 18px}header h1{margin:0;font-size:27px}header p{margin:6px 0 0;color:#dbe9dc}
+main{max-width:900px;margin:20px auto;padding:0 14px 40px}.card{background:white;border:1px solid var(--line);border-radius:16px;padding:18px;margin:14px 0;box-shadow:0 3px 12px #142b1a0b}
+h2{font-size:19px;margin:0 0 14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}
+label{display:block;font-size:13px;font-weight:650;margin-bottom:5px}input{width:100%;padding:11px;border:1px solid #bdcbbf;border-radius:9px;font:inherit}
+button{background:var(--green);color:white;border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:650;margin-top:12px}
+.result{background:#edf5ed;border-radius:10px;padding:12px;margin-top:12px;font-weight:650}
+small,.note{color:#58675c;font-size:13px}svg{width:100%;height:auto;border:1px solid var(--line);border-radius:10px;background:#fff;margin-top:12px}
+footer{text-align:center;color:#657267;font-size:12px;padding:12px}
+</style>
+</head>
+<body>
+<header><h1>🪚 MenuisiCalc</h1><p>Les calculs pratiques pour la menuiserie</p></header>
+<main>
+<section class="card">
+<h2>1. Calculer une surface et son prix</h2>
+<div class="grid">
+<div><label for="longueur">Longueur (cm)</label><input id="longueur" type="number" min="0" value="250"></div>
+<div><label for="largeur">Largeur (cm)</label><input id="largeur" type="number" min="0" value="125"></div>
+<div><label for="quantite">Quantité</label><input id="quantite" type="number" min="1" value="1"></div>
+<div><label for="prix">Prix (€/m²)</label><input id="prix" type="number" min="0" step="0.01" value="20"></div>
+</div>
+<div class="result" id="surfaceResult">Surface : 3,125 m² · Prix estimé : 62,50 €</div>
+</section>
+<section class="card">
+<h2>2. Calculer combien de pièces découper</h2>
+<div class="grid">
+<div><label for="pl">Longueur du panneau (cm)</label><input id="pl" type="number" min="1" value="250"></div>
+<div><label for="pw">Largeur du panneau (cm)</label><input id="pw" type="number" min="1" value="125"></div>
+<div><label for="dl">Longueur d’une pièce (cm)</label><input id="dl" type="number" min="1" value="80"></div>
+<div><label for="dw">Largeur d’une pièce (cm)</label><input id="dw" type="number" min="1" value="40"></div>
+<div><label for="kerf">Largeur du trait de scie (mm)</label><input id="kerf" type="number" min="0" value="3"></div>
+</div>
+<div style="margin-top:12px"><label><input id="rotate" type="checkbox" checked style="width:auto"> Autoriser la rotation des pièces</label></div>
+<button id="calc">Calculer le découpage</button>
+<div class="result" id="cutResult">Nombre estimé : 6 pièces</div>
+<svg id="plan" viewBox="0 0 500 250" role="img" aria-label="Plan de découpe du panneau"></svg>
+<p class="note">Estimation simple en lignes et colonnes : elle ne garantit pas le meilleur agencement. Vérifie le sens du fil du bois, les défauts et les marges de sécurité avant de couper.</p>
+</section>
+</main>
+<footer>MenuisiCalc · Prototype gratuit — vérifie toujours les mesures avant la découpe.</footer>
+<script>
+const $=id=>document.getElementById(id);
+const num=id=>Math.max(0,Number($(id).value)||0);
+const fmt=n=>n.toLocaleString('fr-FR',{maximumFractionDigits:2});
+function surface(){
+ const a=num('longueur')/100,b=num('largeur')/100,q=Math.max(1,num('quantite')),p=num('prix');
+ const s=a*b*q;
+ $('surfaceResult').textContent=`Surface totale : ${fmt(s)} m² · Prix estimé : ${fmt(s*p)} €`;
+}
+function layout(W,H,w,h,k){
+ const cols=Math.floor((W+k)/(w+k)),rows=Math.floor((H+k)/(h+k));
+ return {count:Math.max(0,cols)*Math.max(0,rows),cols,rows,w,h};
+}
+function draw(best,W,H){
+ const svg=$('plan'),sx=480/W,sy=230/H,scale=Math.min(sx,sy);
+ let out=`<rect x="10" y="10" width="${W*scale}" height="${H*scale}" fill="#edf3ed" stroke="#173b2b" stroke-width="2"/>`;
+ for(let r=0;r<best.rows;r++)for(let c=0;c<best.cols;c++){
+  out+=`<rect x="${10+c*(best.w+best.k)*scale}" y="${10+r*(best.h+best.k)*scale}" width="${best.w*scale}" height="${best.h*scale}" fill="#9fc5a5" stroke="#173b2b" stroke-width="1"/>`;
+ }
+ svg.innerHTML=out;svg.setAttribute('viewBox',`0 0 ${Math.max(500,W*scale+20)} ${Math.max(250,H*scale+20)}`);
+}
+function cut(){
+ const W=num('pl'),H=num('pw'),w=num('dl'),h=num('dw'),k=num('kerf')/10;
+ if(!W||!H||!w||!h){$('cutResult').textContent='Entre des dimensions supérieures à 0.';return}
+ let a={...layout(W,H,w,h,k),k},b={...layout(W,H,h,w,k),k};
+ let best=b.count>a.count&&$('rotate').checked?b:a;
+ $('cutResult').textContent=`Environ ${best.count} pièce(s) · ${best.cols} par rangée · ${best.rows} rangée(s)${best===b&&$('rotate').checked?' · pièces tournées':''}`;
+ draw(best,W,H);
+}
+['longueur','largeur','quantite','prix'].forEach(id=>$(id).addEventListener('input',surface));
+$('calc').addEventListener('click',cut);
+['pl','pw','dl','dw','kerf','rotate'].forEach(id=>$(id).addEventListener('input',cut));
+surface();cut();
+</script>
+</body></html>
